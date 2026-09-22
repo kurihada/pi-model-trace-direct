@@ -1,6 +1,6 @@
 {
   "name": "pi-model-trace-direct",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Raw-API model attribution for the Pi coding agent: probe a provider with numeric fingerprint challenges and score the answers against a bundled ModelTrace bank, with an optional second run that keeps Pi's own system prompt so the two can be compared.",
   "license": "MIT",
   "type": "module",
