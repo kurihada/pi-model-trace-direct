@@ -1,5 +1,5 @@
 {
-  "name": "pi-model-trace-api",
+  "name": "pi-model-trace-direct",
   "version": "0.1.0",
   "description": "Raw-API model attribution for the Pi coding agent: probe a provider with numeric fingerprint challenges and score the answers against a bundled ModelTrace bank, with an optional second run that keeps Pi's own system prompt so the two can be compared.",
   "license": "MIT",
@@ -15,11 +15,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kurihada/pi-model-trace-api.git"
+    "url": "git+https://github.com/kurihada/pi-model-trace-direct.git"
   },
-  "homepage": "https://github.com/kurihada/pi-model-trace-api#readme",
+  "homepage": "https://github.com/kurihada/pi-model-trace-direct#readme",
   "bugs": {
-    "url": "https://github.com/kurihada/pi-model-trace-api/issues"
+    "url": "https://github.com/kurihada/pi-model-trace-direct/issues"
   },
   "files": [
     "index.ts",

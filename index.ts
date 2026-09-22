@@ -29,7 +29,7 @@ import { generateChallenges, type Challenge } from "./challenges.ts";
 import { analyzeGlobalOutputs, type AnalysisResult, type FingerprintBank } from "./fingerprint.ts";
 
 const BANK_URL = new URL("./data/unified_bank.json", import.meta.url);
-const MESSAGE_TYPE = "model-trace-api";
+const MESSAGE_TYPE = "model-trace-direct";
 const PROBE_COUNT = 3;
 /** ~300 integers per answer; 4096 leaves room for markup and a short preamble. */
 const MAX_TOKENS = 4096;
@@ -275,7 +275,7 @@ function resolveTarget(
 ): { model: ProbeModel; label: string } | { error: string } {
   const trimmed = query.trim();
   if (!trimmed) {
-    if (!ctx.model) return { error: "No model selected. Usage: /model-trace-api [provider/model] [--pi|--both]" };
+    if (!ctx.model) return { error: "No model selected. Usage: /model-trace-direct [provider/model] [--pi|--both]" };
     return { model: ctx.model, label: `${ctx.model.provider}/${ctx.model.id}` };
   }
   let match = trimmed.includes("/")
@@ -290,7 +290,7 @@ function resolveTarget(
       };
     }
   }
-  if (!match) return { error: `Unknown model "${trimmed}". Usage: /model-trace-api [provider/model] [--pi|--both]` };
+  if (!match) return { error: `Unknown model "${trimmed}". Usage: /model-trace-direct [provider/model] [--pi|--both]` };
   return { model: match, label: `${match.provider}/${match.id}` };
 }
 
@@ -349,12 +349,12 @@ function progressTotal(modes: readonly Mode[], progress: Record<string, number>)
 export default function piModelTraceApi(pi: ExtensionAPI) {
   let running = false;
 
-  pi.registerCommand("model-trace-api", {
+  pi.registerCommand("model-trace-direct", {
     description:
       "Attribute a model via RAW API calls (no Pi system prompt), optionally comparing against the Pi-prompt run",
     handler: async (args, ctx) => {
       if (running) {
-        ctx.ui.notify("A /model-trace-api run is already in progress", "warning");
+        ctx.ui.notify("A /model-trace-direct run is already in progress", "warning");
         return;
       }
       const parsed = parseArgs(args);
@@ -364,7 +364,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
       }
 
       // Anything the caller did not pin down is asked for, so a bare
-      // `/model-trace-api` is two pickers and one Enter in the common case.
+      // `/model-trace-direct` is two pickers and one Enter in the common case.
       let mode = parsed.mode;
       let query = parsed.query;
       if (ctx.hasUI && (!mode || !query)) {
@@ -441,7 +441,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
           const statusLine = () => {
             const seconds = Math.round((Date.now() - startedAt) / 1000);
             const parts = modes.map((m) => `${m} ${progress[m]}/${PROBE_COUNT}`);
-            return `model-trace-api: ${label} · ${parts.join(" · ")} · ${seconds}s`;
+            return `model-trace-direct: ${label} · ${parts.join(" · ")} · ${seconds}s`;
           };
           const setStatusOnly = () => {
             try {

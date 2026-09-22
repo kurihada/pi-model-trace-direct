@@ -153,7 +153,7 @@ await assert.rejects(
   "a real failure is reported as itself, not as a timeout",
 );
 // The waitForIdle guard must release on its own too, or `running` never resets
-// and every later /model-trace-api reports "already in progress".
+// and every later /model-trace-direct reports "already in progress".
 await assert.rejects(
   () => withDeadline(new Promise<void>(() => {}), 25, "Idle wait "),
   /Idle wait did not return within .* giving up/,

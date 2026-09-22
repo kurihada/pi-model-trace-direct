@@ -1,4 +1,4 @@
-# pi-model-trace-api
+# pi-model-trace-direct
 
 Attribute the model actually serving a provider, using **raw API calls**: a probe carries no
 Pi system prompt, no `AGENTS.md`, no skills, no conversation history.
@@ -33,9 +33,9 @@ layer, so there is **no API key to enter and no HTTP client to trust**. `provide
 ## Install
 
 ```bash
-pi install npm:pi-model-trace-api
+pi install npm:pi-model-trace-direct
 # or, working on the source:
-pi install /path/to/pi-model-trace-api
+pi install /path/to/pi-model-trace-direct
 ```
 
 Then quit and relaunch Pi: extensions load at startup and the command list is fixed for the session.
@@ -45,10 +45,10 @@ auto-discovery directory, so source edits need a restart.
 ## Commands
 
 ```text
-/model-trace-api                 pick mode, then pick model
-/model-trace-api --both          mode given, only the model is asked for
-/model-trace-api openai/gpt-5.6-sol            model given, only the mode is asked for
-/model-trace-api openai/gpt-5.6-sol --both     no pickers, runs straight away
+/model-trace-direct                 pick mode, then pick model
+/model-trace-direct --both          mode given, only the model is asked for
+/model-trace-direct openai/gpt-5.6-sol            model given, only the mode is asked for
+/model-trace-direct openai/gpt-5.6-sol --both     no pickers, runs straight away
 ```
 
 The rule is **whatever the arguments pin down is not asked about again**, so the pickers never get
