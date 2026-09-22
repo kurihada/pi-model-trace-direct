@@ -1,0 +1,53 @@
+{
+  "name": "pi-model-trace-api",
+  "version": "0.1.0",
+  "description": "Raw-API model attribution for the Pi coding agent: probe a provider with numeric fingerprint challenges and score the answers against a bundled ModelTrace bank, with an optional second run that keeps Pi's own system prompt so the two can be compared.",
+  "license": "MIT",
+  "type": "module",
+  "author": "kurihada <kurihada@qq.com>",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
+    "fingerprint",
+    "model-attribution",
+    "modeltrace"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurihada/pi-model-trace-api.git"
+  },
+  "homepage": "https://github.com/kurihada/pi-model-trace-api#readme",
+  "bugs": {
+    "url": "https://github.com/kurihada/pi-model-trace-api/issues"
+  },
+  "files": [
+    "index.ts",
+    "fingerprint.ts",
+    "challenges.ts",
+    "checks.ts",
+    "data/unified_bank.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types checks.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2"
+  }
+}

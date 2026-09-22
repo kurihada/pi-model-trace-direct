@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      # typecheck is the load-bearing step: it resolves the real
+      # @earendil-works/pi-coding-agent types from the peer dependency, so a
+      # host API change breaks this build instead of failing at runtime.
+      - run: npm run check
