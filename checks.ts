@@ -40,7 +40,7 @@ assert.ok("error" in parseArgs("openai/gpt-5 --bogus"));
 // current model is pinned first and never duplicated
 assert.deepEqual(
   buildModelOptions("example/a", ["example/a", "example/b"], []),
-  ["example/a — 当前对话模型", "example/b"],
+  ["example/a — current conversation model", "example/b"],
 );
 // scoped list wins over the full catalogue
 assert.deepEqual(buildModelOptions(undefined, ["example/b"], ["other/z"]), ["example/b"]);
@@ -48,10 +48,10 @@ assert.deepEqual(buildModelOptions(undefined, ["example/b"], ["other/z"]), ["exa
 assert.deepEqual(buildModelOptions(undefined, [], ["other/z"]), ["other/z"]);
 // a current model outside the scoped set is still offered
 assert.deepEqual(buildModelOptions("elsewhere/q", ["example/b"], []), [
-  "elsewhere/q — 当前对话模型",
+  "elsewhere/q — current conversation model",
   "example/b",
 ]);
-assert.deepEqual(buildModelOptions("example/a", [], []), ["example/a — 当前对话模型"]);
+assert.deepEqual(buildModelOptions("example/a", [], []), ["example/a — current conversation model"]);
 
 // --- formatComparison ------------------------------------------------------
 
@@ -95,10 +95,10 @@ function fake(
 }
 
 const agreed = formatComparison(fake("raw", "gpt-5.6-sol", 0.8), fake("pi", "gpt-5.6-sol", 0.5)).join("\n");
-assert.match(agreed, /没有改变判定/, "same top model reports agreement");
+assert.match(agreed, /did not change the verdict/, "same top model reports agreement");
 
 const disagreed = formatComparison(fake("raw", "gpt-5.6-sol", 0.8), fake("pi", "claude-opus-5", 0.6)).join("\n");
-assert.match(disagreed, /判定不一致/, "different top model reports the shift");
+assert.match(disagreed, /the two modes disagree/, "different top model reports the shift");
 assert.match(disagreed, /gpt-5\.6-sol/);
 assert.match(disagreed, /claude-opus-5/);
 
@@ -106,7 +106,7 @@ const broken = formatComparison(
   { mode: "raw", counts: [], expected: [300], failure: "spawn failed" },
   fake("pi", "claude-opus-5", 0.6),
 ).join("\n");
-assert.match(broken, /无法比较/, "a failed side does not fabricate a comparison");
+assert.match(broken, /nothing to compare/, "a failed side does not fabricate a comparison");
 
 // --- probe deadline --------------------------------------------------------
 // probe() keys its error message off `deadline.aborted`, so the deadline has to
@@ -142,7 +142,7 @@ const never = new Promise<string>(() => {});
 const startedAt = Date.now();
 await assert.rejects(
   () => withDeadline(never, 30),
-  /超过 .*未返回/,
+  /did not return within .* giving up/,
   "a hung probe is released by the deadline",
 );
 assert.ok(Date.now() - startedAt < 5000, "it is released by the deadline, not later");
@@ -155,8 +155,8 @@ await assert.rejects(
 // The waitForIdle guard must release on its own too, or `running` never resets
 // and every later /model-trace-api reports "already in progress".
 await assert.rejects(
-  () => withDeadline(new Promise<void>(() => {}), 25, "等待空闲 "),
-  /等待空闲 超过 .*未返回/,
+  () => withDeadline(new Promise<void>(() => {}), 25, "Idle wait "),
+  /Idle wait did not return within .* giving up/,
   "the idle wait is bounded, so the running guard cannot wedge",
 );
 
@@ -167,11 +167,11 @@ const allFailed: RunResultArg = {
   mode: "raw",
   counts: [0, 0, 0],
   expected: [300, 300, 300],
-  failure: "探针 超过 5 分钟未返回，已放弃",
+  failure: "Probe did not return within 5 min, giving up",
 };
 const failedReport = formatSingle(allFailed, "example/codex/gpt-5.6-sol").join("\n");
-assert.match(failedReport, /失败: 探针 超过 5 分钟未返回/, "reason reaches the headline");
-assert.match(failedReport, /^> 探针 超过 5 分钟未返回/m, "reason is repeated in the detail block");
-assert.doesNotMatch(failedReport, /家族概率/, "no fabricated probabilities when nothing succeeded");
+assert.match(failedReport, /Failed: Probe did not return within 5 min/, "reason reaches the headline");
+assert.match(failedReport, /^> Probe did not return within 5 min/m, "reason is repeated in the detail block");
+assert.doesNotMatch(failedReport, /Family probabilities/, "no fabricated probabilities when nothing succeeded");
 
 console.log("checks.ts: all assertions passed");

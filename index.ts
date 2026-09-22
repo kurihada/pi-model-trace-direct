@@ -67,11 +67,11 @@ function loadBank(): Promise<FingerprintBank> {
  * handler has no other way out (`ctx.signal` is undefined in extension
  * commands, so Esc cannot help). Racing a plain timer is the only guarantee.
  */
-export function withDeadline<T>(work: Promise<T>, ms: number, what = "请求"): Promise<T> {
+export function withDeadline<T>(work: Promise<T>, ms: number, what = "Request "): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const guard = new Promise<never>((_, reject) => {
-    const span = ms >= 60_000 ? `${Math.round(ms / 60_000)} 分钟` : `${Math.max(1, Math.round(ms / 1000))} 秒`;
-    timer = setTimeout(() => reject(new Error(`${what}超过 ${span}未返回，已放弃`)), ms);
+    const span = ms >= 60_000 ? `${Math.round(ms / 60_000)} min` : `${Math.max(1, Math.round(ms / 1000))}s`;
+    timer = setTimeout(() => reject(new Error(`${what}did not return within ${span}, giving up`)), ms);
   });
   // Promise.race subscribes to both, so the orphaned request cannot surface as
   // an unhandled rejection when it eventually settles.
@@ -125,7 +125,7 @@ async function probe(
     return text.trim();
   };
 
-  return withDeadline(collect(), PROBE_TIMEOUT_MS, "探针 ");
+  return withDeadline(collect(), PROBE_TIMEOUT_MS, "Probe ");
 }
 
 interface RunResult {
@@ -183,18 +183,18 @@ function percent(value: number): string {
 }
 
 function modeLabel(mode: Mode): string {
-  return mode === "raw" ? "裸 API（无系统提示词）" : "带 Pi 系统提示词";
+  return mode === "raw" ? "bare API (no system prompt)" : "with Pi's system prompt";
 }
 
 function formatHeadline(result: RunResult): string {
   const analysis = result.analysis;
-  if (!analysis) return `失败: ${result.failure ?? "无可用回答"}`;
-  return `**${analysis.prediction_name}** (${percent(analysis.probability)}) · 家族 **${analysis.family_prediction_name}** (${percent(analysis.family_probability)})`;
+  if (!analysis) return `Failed: ${result.failure ?? "no usable answers"}`;
+  return `**${analysis.prediction_name}** (${percent(analysis.probability)}) · family **${analysis.family_prediction_name}** (${percent(analysis.family_probability)})`;
 }
 
 export function formatSingle(result: RunResult, label: string): string[] {
   const lines: string[] = [];
-  lines.push(`**归因结果**: ${formatHeadline(result)}`);
+  lines.push(`**Attribution**: ${formatHeadline(result)}`);
   const analysis = result.analysis;
   if (!analysis) {
     lines.push("");
@@ -202,29 +202,29 @@ export function formatSingle(result: RunResult, label: string): string[] {
     return lines;
   }
   lines.push("");
-  lines.push("### 家族概率");
+  lines.push("### Family probabilities");
   for (const family of analysis.family_probabilities) {
     lines.push(`- ${family.display_name}: ${percent(family.probability)}`);
   }
   lines.push("");
-  lines.push(`### 候选模型 Top ${Math.min(6, analysis.results.length)}`);
+  lines.push(`### Candidate models, top ${Math.min(6, analysis.results.length)}`);
   for (const item of analysis.results.slice(0, 6)) {
     lines.push(
-      `- ${item.display_name}: ${percent(item.probability)} (家族内 ${percent(item.conditional_probability)}, 分布相似度 ${item.profile_similarity.toFixed(3)})`,
+      `- ${item.display_name}: ${percent(item.probability)} (in family ${percent(item.conditional_probability)}, distribution similarity ${item.profile_similarity.toFixed(3)})`,
     );
   }
   lines.push("");
-  lines.push("### 探针");
+  lines.push("### Probes");
   for (const [index, diagnostic] of analysis.diagnostics.entries()) {
     const status = diagnostic.accepted
-      ? `${diagnostic.parsed_numbers} 个数字 (要求 ≥${diagnostic.minimum_numbers})`
-      : `无效: 仅 ${diagnostic.parsed_numbers} 个数字 (要求 ≥${diagnostic.minimum_numbers})`;
+      ? `${diagnostic.parsed_numbers} numbers (need ≥${diagnostic.minimum_numbers})`
+      : `invalid: only ${diagnostic.parsed_numbers} numbers (need ≥${diagnostic.minimum_numbers})`;
     lines.push(`- probe #${index + 1}: ${status}`);
   }
-  if (result.failure) lines.push(`- 传输失败: ${result.failure}`);
+  if (result.failure) lines.push(`- transport failure: ${result.failure}`);
   lines.push("");
   lines.push(
-    `有效回答 ${analysis.used_outputs}/${result.expected.length} · 校准 β=${analysis.calibration.beta.toFixed(2)} (CV 准确率 ${percent(analysis.calibration.cv_accuracy)})`,
+    `accepted ${analysis.used_outputs}/${result.expected.length} · calibration β=${analysis.calibration.beta.toFixed(2)} (CV accuracy ${percent(analysis.calibration.cv_accuracy)})`,
   );
   void label;
   return lines;
@@ -233,11 +233,11 @@ export function formatSingle(result: RunResult, label: string): string[] {
 /** The whole reason this package exists: how far did Pi's prompt move the answer? */
 export function formatComparison(raw: RunResult, pi: RunResult): string[] {
   const lines: string[] = [];
-  lines.push("### 模式对比");
+  lines.push("### Mode comparison");
   lines.push("");
-  lines.push("| | 裸 API | 带 Pi 提示词 |");
+  lines.push("| | bare API | with Pi's prompt |");
   lines.push("|---|---|---|");
-  lines.push(`| 首位模型 | ${formatHeadline(raw)} | ${formatHeadline(pi)} |`);
+  lines.push(`| top model | ${formatHeadline(raw)} | ${formatHeadline(pi)} |`);
 
   const top = (result: RunResult) => result.analysis?.results ?? [];
   const modelNames = new Set(
@@ -257,13 +257,13 @@ export function formatComparison(raw: RunResult, pi: RunResult): string[] {
   const rawTop = raw.analysis?.prediction_name;
   const piTop = pi.analysis?.prediction_name;
   if (!rawTop || !piTop) {
-    lines.push("> 有一侧没有拿到有效回答，无法比较。");
+    lines.push("> One side produced no usable answers, so there is nothing to compare.");
   } else if (rawTop === piTop) {
-    lines.push(`**结论**: 两种模式都判为 \`${rawTop}\` —— Pi 的提示词没有改变判定。`);
+    lines.push(`**Conclusion**: both modes agree on \`${rawTop}\` — Pi's prompt did not change the verdict.`);
   } else {
     lines.push(
-      `**结论**: ⚠️ 判定不一致。同一组题、同一个模型，只因加了 Pi 的系统提示词就从 \`${rawTop}\` 变成了 \`${piTop}\`。` +
-        "以裸 API 的结果为准 —— 指纹库是裸调用采出来的。",
+      `**Conclusion**: the two modes disagree. Same challenges, same model — only the system prompt differs, and it moved the verdict from \`${rawTop}\` to \`${piTop}\`.` +
+        " Trust the bare-API answer: the bank was collected that way.",
     );
   }
   return lines;
@@ -275,7 +275,7 @@ function resolveTarget(
 ): { model: ProbeModel; label: string } | { error: string } {
   const trimmed = query.trim();
   if (!trimmed) {
-    if (!ctx.model) return { error: "没有选中模型。用法: /model-trace-api [provider/model] [--pi|--both]" };
+    if (!ctx.model) return { error: "No model selected. Usage: /model-trace-api [provider/model] [--pi|--both]" };
     return { model: ctx.model, label: `${ctx.model.provider}/${ctx.model.id}` };
   }
   let match = trimmed.includes("/")
@@ -286,11 +286,11 @@ function resolveTarget(
     if (candidates.length === 1) match = candidates[0];
     if (candidates.length > 1) {
       return {
-        error: `模型名 "${trimmed}" 有歧义: ${candidates.map((m) => `${m.provider}/${m.id}`).join(", ")}`,
+        error: `Ambiguous model "${trimmed}": ${candidates.map((m) => `${m.provider}/${m.id}`).join(", ")}`,
       };
     }
   }
-  if (!match) return { error: `未知模型 "${trimmed}"。用法: /model-trace-api [provider/model] [--pi|--both]` };
+  if (!match) return { error: `Unknown model "${trimmed}". Usage: /model-trace-api [provider/model] [--pi|--both]` };
   return { model: match, label: `${match.provider}/${match.id}` };
 }
 
@@ -302,16 +302,16 @@ export function parseArgs(input: string): { mode?: Mode; query: string } | { err
     if (token === "--pi") mode = "pi";
     else if (token === "--both") mode = "both";
     else if (token === "--raw") mode = "raw";
-    else if (token.startsWith("--")) return { error: `未知参数 ${token}。支持 --raw / --pi / --both` };
+    else if (token.startsWith("--")) return { error: `Unknown argument ${token}. Supported: --raw / --pi / --both` };
     else rest.push(token);
   }
   return { ...(mode ? { mode } : {}), query: rest.join(" ") };
 }
 
 const MODE_OPTIONS: Array<{ label: string; mode: Mode }> = [
-  { label: "裸 API — 不带系统提示词（与指纹库采集环境一致）", mode: "raw" },
-  { label: "带 Pi 系统提示词", mode: "pi" },
-  { label: "两种都跑，对比偏移", mode: "both" },
+  { label: "Bare API — no system prompt (matches the bank's collection environment)", mode: "raw" },
+  { label: "With Pi's system prompt", mode: "pi" },
+  { label: "Both, and report the delta", mode: "both" },
 ];
 
 /**
@@ -325,7 +325,7 @@ export function buildModelOptions(
   available: readonly string[],
 ): string[] {
   const options: string[] = [];
-  if (current) options.push(`${current} — 当前对话模型`);
+  if (current) options.push(`${current} — current conversation model`);
   const pool = scoped.length ? scoped : available;
   const seen = new Set(current ? [current] : []);
   for (const id of pool) {
@@ -354,7 +354,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
       "Attribute a model via RAW API calls (no Pi system prompt), optionally comparing against the Pi-prompt run",
     handler: async (args, ctx) => {
       if (running) {
-        ctx.ui.notify("已经有一个 /model-trace-api 在跑了", "warning");
+        ctx.ui.notify("A /model-trace-api run is already in progress", "warning");
         return;
       }
       const parsed = parseArgs(args);
@@ -370,7 +370,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
       if (ctx.hasUI && (!mode || !query)) {
         if (!mode) {
           const choice = await ctx.ui.select(
-            "ModelTrace: 测哪种模式？",
+            "ModelTrace: which mode?",
             MODE_OPTIONS.map((option) => option.label),
           );
           if (!choice) return;
@@ -385,10 +385,10 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
             ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`),
           );
           if (!options.length) {
-            ctx.ui.notify("没有可用模型", "error");
+            ctx.ui.notify("No models available", "error");
             return;
           }
-          const choice = await ctx.ui.select("ModelTrace: 测哪个模型？", options);
+          const choice = await ctx.ui.select("ModelTrace: which model?", options);
           if (!choice) return;
           query = optionToModelId(choice);
         }
@@ -432,10 +432,10 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
           // the session can still start a turn mid-run. Bounded because an
           // unbounded hang here would leave `running` true forever and lock the
           // command out with "already in progress" on every later call.
-          await withDeadline(ctx.waitForIdle(), WAIT_IDLE_TIMEOUT_MS, "等待空闲 ").catch(() => {});
+          await withDeadline(ctx.waitForIdle(), WAIT_IDLE_TIMEOUT_MS, "Idle wait ").catch(() => {});
           const challenges = generateChallenges(PROBE_COUNT);
           safeNotify(
-            `ModelTrace: ${label} · ${modes.length} 种模式 · ${total} 次请求并发，预计 1-2 分钟…`,
+            `ModelTrace: ${label} · ${modes.length} mode(s) · ${total} concurrent requests, expect 1-2 min…`,
           );
 
           const statusLine = () => {
@@ -455,7 +455,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
           const refresh = () => {
             setStatusOnly();
             const elapsed = Math.round((Date.now() - startedAt) / 1000);
-            safeNotify(`ModelTrace ${progressTotal(modes, progress)}/${total} 完成 · ${elapsed}s`);
+            safeNotify(`ModelTrace ${progressTotal(modes, progress)}/${total} done · ${elapsed}s`);
           };
 
           setStatusOnly();
@@ -471,9 +471,9 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
           );
 
           const elapsed = ((Date.now() - startedAt) / 1000).toFixed(0);
-          const lines: string[] = ["## ModelTrace 归因（裸 API）", ""];
-          lines.push(`**待测模型**: \`${label}\``);
-          lines.push(`**模式**: ${modes.map(modeLabel).join(" vs ")} · **用时 ${elapsed}s**`);
+          const lines: string[] = ["## ModelTrace attribution (bare API)", ""];
+          lines.push(`**Target model**: \`${label}\``);
+          lines.push(`**Mode**: ${modes.map(modeLabel).join(" vs ")} · **${elapsed}s elapsed**`);
           lines.push("");
           for (const result of results) {
             if (modes.length > 1) {
@@ -489,7 +489,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
             lines.push("");
           }
           lines.push(
-            "> 结果为指纹库内的闭集概率，仅供参考。未收录模型会被归到最相似的现有候选。",
+            "> Closed-set probabilities within the bundled bank only. An unlisted model is attributed to its nearest candidate.",
           );
 
           pi.sendMessage(
@@ -504,13 +504,13 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
           const okCount = results.filter((result) => result.analysis).length;
           safeNotify(
             okCount
-              ? `ModelTrace 完成，用时 ${elapsed}s`
-              : `ModelTrace 失败：没有拿到任何可用回答，用时 ${elapsed}s`,
+              ? `ModelTrace finished in ${elapsed}s`
+              : `ModelTrace failed: no usable answers, ${elapsed}s elapsed`,
             okCount ? "info" : "error",
           );
         } catch (error) {
           safeNotify(
-            `ModelTrace 失败: ${error instanceof Error ? error.message : String(error)}`,
+            `ModelTrace failed: ${error instanceof Error ? error.message : String(error)}`,
             "error",
           );
         } finally {
@@ -525,7 +525,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
       };
 
       void run();
-      safeNotify(`ModelTrace 已开始（${label}），可以继续对话`);
+      safeNotify(`ModelTrace started for ${label} — you can keep chatting`);
     },
   });
 }
