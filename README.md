@@ -4,16 +4,17 @@ Attribute the model actually serving a provider, using **raw API calls**: a prob
 Pi system prompt, no `AGENTS.md`, no skills, no conversation history.
 
 ModelTrace identifies a model by its numeric-generation bias. Each probe asks for ~300 integers
-between 1 and 355 and scores the answer against a bundled fingerprint bank. It is the practical
-answer to "did this endpoint really give me the model I paid for".
+between 1 and 355 and scores the answer against a fingerprint bank that is fetched from the
+reference project on first use. It is the practical answer to "did this endpoint really give me the
+model I paid for".
 
 ## Why a separate package
 
 The existing `@indexyz/pi-model-trace` runs its probes as `pi -p --no-session --no-tools` child
 processes. That gives the model a clean *conversation*, but it still carries Pi's whole system
-prompt. The bank behind both packages was collected over bare API calls, so a harness prompt shifts
-the output distribution away from every stored centroid — and a model sitting right in front of you
-gets attributed to its nearest neighbour instead.
+prompt. The bank is built from 12 prompt environments and projects the average between-environment
+offset out of the feature space, so a harness prompt is damped rather than invisible — it can still
+pull a model that is right in front of you onto its nearest neighbour.
 
 This package calls `ctx.modelRegistry.streamSimple()` with a context it builds itself, so the system
 prompt is exactly what this package decides it is:
@@ -58,7 +59,7 @@ skipped and it runs `--raw` against the current model.
 
 | mode | system prompt | when |
 | --- | --- | --- |
-| `--raw` (default) | none | the honest measurement; matches the bank's collection environment |
+| `--raw` (default) | none | the honest measurement; the reference challenges were collected this way |
 | `--pi` | Pi's current prompt | what the harness costs you |
 | `--both` | both, same challenges | the delta between them |
 
@@ -71,7 +72,8 @@ skipped and it runs `--raw` against the current model.
 | top model | gpt-5.6-sol (78.3%) | claude-opus-5 (54.1%) |
 
 Conclusion: the two modes disagree. Same challenges, same model — only the system
-prompt changed. Trust the bare-API answer; the bank was collected that way.
+prompt changed. Trust the bare-API answer; that is the environment the reference
+challenges were collected in.
 ```
 
 Same challenge generator, same scoring code, one variable. That is a measurement of the harness
@@ -93,8 +95,31 @@ transport, JSON / English / Chinese style, prefixes of 0 to 2048 words) and proj
 offset between environments out of the feature space. Model probabilities come from one global
 softmax; family probability is the sum over that family's models.
 
-The bundled bank holds **24 models across 6 families** — 8 GPT, 9 Claude, 3 Kimi, 2 Grok, 1 Gemini,
-1 GLM. Upstream's own repository is still on an older 13-model, 2-family bank.
+The bank holds **53 models across 12 families and 9 providers** — 10 GPT, 11 Claude, 6 Gemini,
+3 Grok, 4 GLM, 6 DeepSeek, 4 MiMo, 2 Qwen, 2 Kimi, 3 Muse, 1 Step, 1 Hunyuan — built from 1948
+enrolled responses. The reference data is maintained by
+[Ikaleio/lm-detector](https://github.com/Ikaleio/lm-detector) (MIT).
+
+### Where the bank comes from
+
+The bank is **not bundled**: it is fetched from `https://lm.ikale.io/data/` on first use, verified,
+and cached at `~/.cache/pi-model-trace-direct/bank.json` (~1 MB compressed, ~3 MB on disk).
+
+Integrity, in order:
+
+1. Every chunk is content-addressed — `unified_bank.json.<sha256(compressed)[:16]>.0.zst` — so the
+expected digest comes from the manifest itself and is checked against the bytes actually received.
+2. The decompressed payload is parsed and shape-checked (`model_order` alignment, 355-bin
+histograms, 355/74-wide centroids, the 1/2/3-answer calibration) before anything is scored.
+3. The cache is re-hashed on every load, so a corrupted cache is refetched instead of scored.
+
+| variable | effect |
+| --- | --- |
+| `PI_MODEL_TRACE_BANK` | path to a local bank file; skips the network entirely |
+| `PI_MODEL_TRACE_BANK_SHA256` | pin the exact revision by sha256 of the decompressed bank |
+
+Offline with a warm cache, the last fetched bank is used. Offline with a cold cache, the run fails
+with that instruction rather than silently attributing against nothing.
 
 ## Behaviour against a slow provider
 
@@ -126,7 +151,7 @@ rate limit shows up as a failed probe rather than a failed run.
 
 ## What a result means, and what it does not
 
-The probabilities are **closed-set**: relative to the bundled candidates only. A model that is not
+The probabilities are **closed-set**: relative to the candidates in the bank only. A model that is not
 in the bank still gets attributed to its nearest neighbour, and nothing in the output will say so.
 Read a confident 49% as "closer to this candidate than to the others", not as "this is the model".
 
@@ -139,10 +164,12 @@ Two further caveats worth holding onto:
 
 ## Credits
 
-The scoring algorithm, challenge generator and fingerprint bank are an MIT-licensed TypeScript port
-of [xqy2006/ModelTrace](https://github.com/xqy2006/ModelTrace) (Copyright © 2026 xqy2006), which in
+The scoring algorithm and challenge generator are an MIT-licensed TypeScript port of
+[xqy2006/ModelTrace](https://github.com/xqy2006/ModelTrace) (Copyright © 2026 xqy2006), which in
 turn credits [hanlinwenyuan/hlwy-ai-checker](https://github.com/hanlinwenyuan/hlwy-ai-checker) for
-first applying language-model numeric bias to third-party channel checking.
+first applying language-model numeric bias to third-party channel checking. The fingerprint bank and
+the reference data behind it come from [Ikaleio/lm-detector](https://github.com/Ikaleio/lm-detector)
+(MIT, Copyright © 2026 Ikaleio).
 
 ## Development
 

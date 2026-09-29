@@ -4,7 +4,10 @@
  */
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
+import { chunkDigest, validateBank, verifyChunk } from "./bank.ts";
+import { DIMENSION, type FingerprintBank } from "./fingerprint.ts";
 import {
   parseArgs,
   buildModelOptions,
@@ -173,5 +176,57 @@ const failedReport = formatSingle(allFailed, "example/codex/gpt-5.6-sol").join("
 assert.match(failedReport, /Failed: Probe did not return within 5 min/, "reason reaches the headline");
 assert.match(failedReport, /^> Probe did not return within 5 min/m, "reason is repeated in the detail block");
 assert.doesNotMatch(failedReport, /Family probabilities/, "no fabricated probabilities when nothing succeeded");
+
+// --- runtime bank source ----------------------------------------------------
+// The bank is fetched, so the checksum and the shape checks are the only thing
+// between a broken download and a wrong attribution. All offline.
+const payload = Buffer.from("payload");
+const payloadDigest = createHash("sha256").update(payload).digest("hex").slice(0, 16);
+const chunkName = `unified_bank.json.${payloadDigest}.0.zst`;
+assert.equal(chunkDigest(chunkName), payloadDigest, "digest is read out of the chunk name");
+assert.throws(() => chunkDigest("unified_bank.json.zst"), /malformed/, "a name without a digest is rejected");
+verifyChunk(chunkName, Buffer.from("payload"));
+assert.throws(
+  () => verifyChunk(chunkName, Buffer.from("payloaX")),
+  /failed its checksum/,
+  "one flipped byte is caught",
+);
+
+// SAFETY: the fixture is deliberately partial and deliberately not a real
+// FingerprintBank — validateBank only reads the fields built right here, so
+// the cast hides nothing the checks below depend on.
+const synthetic = () => {
+  const counts = Array(DIMENSION).fill(1) as number[];
+  const row = (width: number) => Array(width).fill(0) as number[];
+  return {
+    schema: "robust-number-fingerprint-bank",
+    models: [
+      { id: "a", display_name: "A", counts },
+      { id: "b", display_name: "B", counts },
+    ],
+    robust: {
+      model_order: ["a", "b"],
+      hellinger: { centroids: [row(DIMENSION), row(DIMENSION)] },
+      ordered_blocks: {
+        centroids: [row(74), row(74)],
+        environment_centroids: [[row(74), row(74)]],
+      },
+    },
+    calibration: { 1: { beta: 1 }, 2: { beta: 1 }, 3: { beta: 1 } },
+  } as unknown as FingerprintBank;
+};
+assert.equal(validateBank(synthetic()).models.length, 2, "a bank with the right shape passes");
+assert.throws(() => validateBank({ ...synthetic(), models: [] }), /no models/, "an empty bank is rejected");
+assert.throws(
+  () => validateBank({ ...synthetic(), calibration: {} } as FingerprintBank),
+  /missing the 1-answer calibration/,
+  "an uncalibrated bank is rejected",
+);
+const truncated = synthetic();
+truncated.robust.hellinger.centroids[1].pop();
+assert.throws(() => validateBank(truncated), /hellinger\.centroids is not 2x355/, "a short centroid row is rejected");
+const shuffled = synthetic();
+shuffled.robust.model_order = ["b", "a"];
+assert.throws(() => validateBank(shuffled), /out of step at index 0/, "a reordered bank is rejected");
 
 console.log("checks.ts: all assertions passed");

@@ -7,28 +7,28 @@
  *   --pi              the model additionally receives Pi's full system prompt
  *   --both            runs raw and --pi over the SAME challenges and reports the delta
  *
- * The delta is the point. The bundled ModelTrace bank was collected over bare API
- * calls, so a harness system prompt shifts the output distribution away from every
- * stored centroid and can misattribute a model that is right in front of you.
+ * The delta is the point. The reference bank is built from 12 prompt environments
+ * with the average between-environment offset projected out of the feature space,
+ * so a harness system prompt is damped rather than invisible — it can still pull a
+ * model that is right in front of you onto its nearest neighbour.
  *
  * For the "probe inside a real Pi session" case there is
  * npm:@indexyz/pi-model-trace (`/model-trace`), which spawns `pi -p` children.
  * This package deliberately does not: `ctx.modelRegistry.streamSimple()` takes a
  * context we build ourselves, so we control the system prompt exactly.
  *
- * Ported algorithm, challenge generator and fingerprint bank:
+ * Ported algorithm and challenge generator:
  * https://github.com/xqy2006/ModelTrace (MIT, Copyright (c) 2026 xqy2006).
+ * Fingerprint bank and reference data: https://github.com/Ikaleio/lm-detector
+ * (MIT, Copyright © 2026 Ikaleio) — see bank.ts.
  */
-
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import { loadBank } from "./bank.ts";
 import { generateChallenges, type Challenge } from "./challenges.ts";
-import { analyzeGlobalOutputs, type AnalysisResult, type FingerprintBank } from "./fingerprint.ts";
+import { analyzeGlobalOutputs, type AnalysisResult } from "./fingerprint.ts";
 
-const BANK_URL = new URL("./data/unified_bank.json", import.meta.url);
 const MESSAGE_TYPE = "model-trace-direct";
 const PROBE_COUNT = 3;
 /** ~300 integers per answer; 4096 leaves room for markup and a short preamble. */
@@ -49,14 +49,6 @@ const WAIT_IDLE_TIMEOUT_MS = 60 * 1000;
 
 type ProbeModel = NonNullable<ExtensionCommandContext["model"]>;
 type Mode = "raw" | "pi" | "both";
-
-let bankPromise: Promise<FingerprintBank> | undefined;
-function loadBank(): Promise<FingerprintBank> {
-  bankPromise ??= readFile(fileURLToPath(BANK_URL), "utf8").then(
-    (raw) => JSON.parse(raw) as FingerprintBank,
-  );
-  return bankPromise;
-}
 
 /**
  * Bound the wait at OUR layer, not the provider's.
@@ -489,7 +481,7 @@ export default function piModelTraceApi(pi: ExtensionAPI) {
             lines.push("");
           }
           lines.push(
-            "> Closed-set probabilities within the bundled bank only. An unlisted model is attributed to its nearest candidate.",
+            "> Closed-set probabilities within the fetched bank only. An unlisted model is attributed to its nearest candidate.",
           );
 
           pi.sendMessage(

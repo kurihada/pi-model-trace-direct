@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["index.ts", "fingerprint.ts", "challenges.ts", "checks.ts"]
+  "include": ["index.ts", "bank.ts", "fingerprint.ts", "challenges.ts", "checks.ts"]
 }

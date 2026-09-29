@@ -1,7 +1,7 @@
 {
   "name": "pi-model-trace-direct",
-  "version": "0.1.2",
-  "description": "Raw-API model attribution for the Pi coding agent: probe a provider with numeric fingerprint challenges and score the answers against a bundled ModelTrace bank, with an optional second run that keeps Pi's own system prompt so the two can be compared.",
+  "version": "0.1.3",
+  "description": "Raw-API model attribution for the Pi coding agent: probe a provider with numeric fingerprint challenges and score the answers against a runtime-fetched 53-model fingerprint bank, with an optional second run that keeps Pi's own system prompt so the two can be compared.",
   "license": "MIT",
   "type": "module",
   "author": "kurihada <kurihada@qq.com>",
@@ -23,10 +23,10 @@
   },
   "files": [
     "index.ts",
+    "bank.ts",
     "fingerprint.ts",
     "challenges.ts",
     "checks.ts",
-    "data/unified_bank.json",
     "README.md",
     "LICENSE"
   ],
