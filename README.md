@@ -83,7 +83,9 @@ prompt's cost, not noise between two different tools.
 
 Three probes, each asking for 292–333 first-instinct integers from 1 to 355 inclusive, with tools,
 code execution and arithmetic progressions explicitly forbidden. Answers shorter than 55% of the
-requested count are discarded.
+requested count are discarded; answers longer than the requested count are cut to it, and the probe
+stops reading as soon as it has enough. A run that never reasons writes several times the asked
+length, and the extra integers are not part of the fingerprint the bank was built on.
 
 ```text
 0.75 × nuisance-projected Hellinger centroid similarity
