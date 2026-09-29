@@ -237,6 +237,14 @@ function robustScoreNumbers(numbers: readonly number[], bank: FingerprintBank): 
   return marginal.map((value, index) => (1 - weight) * value + weight * ordered[index]);
 }
 
+/** Descending probability — the order every list in the report is printed in. */
+export function byProbabilityDesc(
+  left: { probability: number },
+  right: { probability: number },
+): number {
+  return right.probability - left.probability;
+}
+
 function softmax(values: readonly number[]): number[] {
   const maximum = Math.max(...values);
   const weights = values.map((value) => Math.exp(value - maximum));
@@ -310,7 +318,7 @@ export function analyzeGlobalOutputs(
       family_name: familyNames[modelEntries[model].family || "models"],
       conditional_probability: 0,
     }))
-    .sort((left, right) => right.probability - left.probability);
+    .sort(byProbabilityDesc);
   const familyProbabilities = Object.fromEntries(
     familyOrder.map((family) => [
       family,
@@ -340,11 +348,13 @@ export function analyzeGlobalOutputs(
     family_prediction: winningFamily,
     family_prediction_name: familyNames[winningFamily],
     family_probability: familyProbabilities[winningFamily],
-    family_probabilities: familyOrder.map((family) => ({
-      family,
-      display_name: familyNames[family],
-      probability: familyProbabilities[family],
-    })),
+    family_probabilities: familyOrder
+      .map((family) => ({
+        family,
+        display_name: familyNames[family],
+        probability: familyProbabilities[family],
+      }))
+      .sort(byProbabilityDesc),
     method: "统一全局稳健数字指纹",
   };
 }

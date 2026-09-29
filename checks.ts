@@ -7,8 +7,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 import { chunkDigest, validateBank, verifyChunk } from "./bank.ts";
-import { DIMENSION, type FingerprintBank } from "./fingerprint.ts";
+import { byProbabilityDesc, DIMENSION, parseNumbers, type FingerprintBank } from "./fingerprint.ts";
 import {
+  capAnswer,
   parseArgs,
   buildModelOptions,
   formatComparison,
@@ -228,5 +229,30 @@ assert.throws(() => validateBank(truncated), /hellinger\.centroids is not 2x355/
 const shuffled = synthetic();
 shuffled.robust.model_order = ["b", "a"];
 assert.throws(() => validateBank(shuffled), /out of step at index 0/, "a reordered bank is rejected");
+
+// --- family order -----------------------------------------------------------
+// The report is read top-down: the winning family has to be the first line.
+assert.deepEqual(
+  [{ probability: 0.1 }, { probability: 0.9 }, { probability: 0.4 }].sort(byProbabilityDesc),
+  [{ probability: 0.9 }, { probability: 0.4 }, { probability: 0.1 }],
+  "families are listed by descending probability, not bank order",
+);
+
+// --- answer cap -------------------------------------------------------------
+// A probe that stops reasoning writes past the requested count (measured
+// 324-4101 integers for a 295-integer request, finish_reason "stop"), and the
+// bank was built on answers that stop at the count. The reader must cut it.
+const overshoot = Array.from({ length: 900 }, (_, index) => String((index % 355) + 1)).join(", ");
+const capped = capAnswer(overshoot, 300);
+assert.equal(capped?.split(", ").length, 300, "a 900-integer answer is cut to the 300 requested");
+assert.equal(parseNumbers(capped ?? "").length, 300, "the capped text re-parses as exactly 300 integers");
+assert.equal(capAnswer("10, 20, 30", 300), undefined, "a short answer keeps reading");
+// the last digits of a stream may still grow: "3" can still become "355"
+assert.equal(
+  capAnswer("10, 20, 30, 40, 5", 4),
+  "10, 20, 30, 40",
+  "a half-arrived number is not part of the answer",
+);
+assert.equal(capAnswer("10, 20, 30, 40, 5", 5), undefined, "a half-arrived number cannot satisfy the count");
 
 console.log("checks.ts: all assertions passed");

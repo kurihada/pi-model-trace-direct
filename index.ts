@@ -27,12 +27,33 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import { loadBank } from "./bank.ts";
 import { generateChallenges, type Challenge } from "./challenges.ts";
-import { analyzeGlobalOutputs, type AnalysisResult } from "./fingerprint.ts";
+import { analyzeGlobalOutputs, parseNumbers, type AnalysisResult } from "./fingerprint.ts";
 
 const MESSAGE_TYPE = "model-trace-direct";
 const PROBE_COUNT = 3;
-/** ~300 integers per answer; 4096 leaves room for markup and a short preamble. */
-const MAX_TOKENS = 4096;
+/**
+ * Budget per probe. Measured against tapsvc/deepseek-flash: a single ~300-integer
+ * answer costs 4.7k-11.5k *thinking* tokens before any text appears, so the old
+ * 4096 was spent entirely on reasoning and returned an empty answer. 25600 leaves
+ * room for the reasoning plus the sequence itself.
+ */
+const MAX_TOKENS = 25600;
+
+/**
+ * Stop reading once the answer already holds enough integers, and keep exactly
+ * that many. Without this a probe that stops reasoning writes until its own
+ * limit (measured: 324-4101 integers for a 295-integer request), and the extra
+ * length is not part of the fingerprint the bank was built on.
+ *
+ * Returns undefined while the answer is still short — keep accumulating.
+ */
+export function capAnswer(text: string, expected: number): string | undefined {
+  // The last digit run may still be growing ("3" can become "355"), so only
+  // complete integers count towards the threshold.
+  const numbers = parseNumbers(text.replace(/\d+$/, ""));
+  if (numbers.length < expected) return undefined;
+  return numbers.slice(0, expected).join(", ");
+}
 /**
  * Hard deadline per probe. Without it a stalled endpoint hangs the TUI forever,
  * and the command handler has no other way out: `ctx.signal` is documented as
@@ -102,9 +123,16 @@ async function probe(
 
     let text = "";
     for await (const event of stream) {
-      if (event.type === "text_delta") text += event.delta;
-      else if (event.type === "error") {
+      if (event.type === "error") {
         throw new Error(event.error?.errorMessage ?? "provider error");
+      }
+      if (event.type !== "text_delta") continue;
+      text += event.delta;
+      const capped = capAnswer(text, challenge.expected_count);
+      // Enough integers: score those and stop paying for the rest of the stream.
+      if (capped !== undefined) {
+        text = capped;
+        break;
       }
     }
     if (!text.trim()) {
